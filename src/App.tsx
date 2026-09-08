@@ -30,6 +30,7 @@ import {
   updateSheetCourierStatus,
   updateSheetSteadfastAction,
   updateSheetQuantity,
+  updateSheetCustomerDetails,
   appendSheetOrder,
   getSheetProducts,
 } from './services/sheets';
@@ -402,6 +403,61 @@ export default function App() {
     }
   };
 
+  // 6. Update Customer Details (Name, Phone, Address in Columns F, C, B)
+  const handleUpdateCustomerDetails = async (
+    order: Order,
+    details: { customerName: string; customerPhone: string; customerAddress: string }
+  ): Promise<boolean> => {
+    const targetRow = resolveRowIndex(order);
+
+    // Optimistically update orders in local state
+    setOrders((prev) =>
+      prev.map((o) =>
+        isSameOrder(o, order)
+          ? {
+              ...o,
+              customerName: details.customerName,
+              customerPhone: details.customerPhone,
+              customerAddress: details.customerAddress,
+              rowIndex: targetRow,
+            }
+          : o
+      )
+    );
+
+    // Keep selectedOrderForView in sync
+    if (selectedOrderForView && isSameOrder(selectedOrderForView, order)) {
+      setSelectedOrderForView((prev) =>
+        prev
+          ? {
+              ...prev,
+              customerName: details.customerName,
+              customerPhone: details.customerPhone,
+              customerAddress: details.customerAddress,
+              rowIndex: targetRow,
+            }
+          : null
+      );
+    }
+
+    try {
+      await updateSheetCustomerDetails(
+        spreadsheetId,
+        accessToken,
+        orderSheetTab,
+        targetRow,
+        details,
+        order.id
+      );
+      showToast(`✅ অর্ডারের নাম, ফোন ও ঠিকানা গুগল শিটে আপডেট হয়েছে!`);
+      return true;
+    } catch (err: any) {
+      console.error('Failed to sync customer details to sheet:', err);
+      showToast(`❌ গুগল শিটে কাস্টমার তথ্য আপডেট ব্যর্থ: ${err.message || 'ত্রুটি'}`, 'error');
+      return false;
+    }
+  };
+
   // Alias for components expecting handleSendToSteadfast
   const handleSendToSteadfast = (order: Order) => handleToggleSteadfast(order, 'send to steadfast');
 
@@ -641,6 +697,7 @@ export default function App() {
         onUpdateStatus={handleUpdateOrderStatus}
         onSendToSteadfast={handleSendToSteadfast}
         onDeleteOrder={handleDeleteOrder}
+        onUpdateCustomerDetails={handleUpdateCustomerDetails}
       />
 
       {/* Google Sheet Settings Modal */}

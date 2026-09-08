@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Printer,
@@ -7,9 +7,11 @@ import {
   Rocket,
   Phone,
   MapPin,
-  Package,
   Calendar,
   Trash2,
+  Edit3,
+  User,
+  Loader2,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 
@@ -19,6 +21,10 @@ interface ViewOrderModalProps {
   onUpdateStatus: (order: Order, newStatus: OrderStatus) => void;
   onSendToSteadfast: (order: Order) => void;
   onDeleteOrder?: (order: Order) => void;
+  onUpdateCustomerDetails?: (
+    order: Order,
+    details: { customerName: string; customerPhone: string; customerAddress: string }
+  ) => Promise<boolean> | void;
 }
 
 export const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
@@ -27,9 +33,26 @@ export const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
   onUpdateStatus,
   onSendToSteadfast,
   onDeleteOrder,
+  onUpdateCustomerDetails,
 }) => {
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Customer Editing State
+  const [isEditingCustomer, setIsEditingCustomer] = useState(false);
+  const [name, setName] = useState(order?.customerName || '');
+  const [phone, setPhone] = useState(order?.customerPhone || '');
+  const [address, setAddress] = useState(order?.customerAddress || '');
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
+
+  useEffect(() => {
+    if (order) {
+      setName(order.customerName || '');
+      setPhone(order.customerPhone || '');
+      setAddress(order.customerAddress || '');
+      setIsEditingCustomer(false);
+    }
+  }, [order?.id, order?.customerName, order?.customerPhone, order?.customerAddress]);
 
   if (!order) return null;
 
@@ -47,6 +70,39 @@ export const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
     if (onDeleteOrder) {
       onDeleteOrder(order);
       onClose();
+    }
+  };
+
+  const handleCancelCustomerEdit = () => {
+    setName(order.customerName || '');
+    setPhone(order.customerPhone || '');
+    setAddress(order.customerAddress || '');
+    setIsEditingCustomer(false);
+  };
+
+  const handleSaveCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      alert('গ্রাহকের নাম লিখুন');
+      return;
+    }
+    if (!phone.trim()) {
+      alert('ফোন নম্বর লিখুন');
+      return;
+    }
+
+    setIsSavingCustomer(true);
+    try {
+      if (onUpdateCustomerDetails) {
+        await onUpdateCustomerDetails(order, {
+          customerName: name.trim(),
+          customerPhone: phone.trim(),
+          customerAddress: address.trim(),
+        });
+      }
+      setIsEditingCustomer(false);
+    } finally {
+      setIsSavingCustomer(false);
     }
   };
 
@@ -69,13 +125,13 @@ export const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
             <button
               onClick={handlePrint}
               title="প্রিন্ট ইনভয়েস"
-              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#1c2232] transition-colors"
+              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#1c2232] transition-colors cursor-pointer"
             >
               <Printer className="w-4 h-4" />
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#1c2232] transition-colors"
+              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#1c2232] transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -84,25 +140,124 @@ export const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
 
         {/* Content */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-5">
-          {/* Customer Card */}
+          {/* Customer Card: View & Edit Customer Name, Phone, Address */}
           <div className="p-3.5 sm:p-4 rounded-xl bg-[#161a26] border border-[#232b3e] space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h4 className="font-bold text-gray-100 text-sm">{order.customerName}</h4>
-                <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                  <MapPin className="w-3.5 h-3.5 text-pink-400 shrink-0" />
-                  <span>{order.customerAddress || 'ঢাকা'}</span>
-                </p>
-              </div>
-
-              <a
-                href={`tel:${order.customerPhone}`}
-                className="flex items-center gap-1.5 text-xs text-pink-400 hover:underline font-mono bg-pink-500/10 px-2.5 py-1.5 rounded-lg border border-pink-500/20 shrink-0 active:scale-95"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>{order.customerPhone}</span>
-              </a>
+            <div className="flex items-center justify-between pb-1 border-b border-[#202738]/60">
+              <span className="text-xs font-semibold text-gray-400 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-pink-400" />
+                গ্রাহকের তথ্য
+              </span>
+              {!isEditingCustomer ? (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingCustomer(true)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 text-xs font-semibold border border-pink-500/30 transition-all cursor-pointer"
+                  title="নাম, ফোন বা ঠিকানা এডিট করুন"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  <span>এডিট করুন</span>
+                </button>
+              ) : (
+                <span className="text-[11px] text-pink-400 font-medium">তথ্য সংশোধন মুড</span>
+              )}
             </div>
+
+            {isEditingCustomer ? (
+              /* Customer Edit Form */
+              <form onSubmit={handleSaveCustomer} className="space-y-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                    গ্রাহকের নাম (Column F):
+                  </label>
+                  <div className="relative">
+                    <User className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="গ্রাহকের নাম লিখুন"
+                      className="w-full bg-[#0d1017] border border-[#263147] focus:border-pink-500 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none transition-colors"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                    মোবাইল নম্বর (Column C):
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-2.5" />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="01XXXXXXXXX"
+                      className="w-full bg-[#0d1017] border border-[#263147] focus:border-pink-500 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none font-mono transition-colors"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                    ঠিকানা (Column B):
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-2.5" />
+                    <textarea
+                      rows={2}
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="সম্পূর্ণ ঠিকানা লিখুন"
+                      className="w-full bg-[#0d1017] border border-[#263147] focus:border-pink-500 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none resize-none transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={isSavingCustomer}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold shadow-md shadow-pink-900/50 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingCustomer ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isSavingCustomer ? 'আপডেট হচ্ছে...' : 'আপডেট করুন'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelCustomerEdit}
+                    disabled={isSavingCustomer}
+                    className="py-1.5 px-3 rounded-lg bg-[#1e2536] hover:bg-[#28324a] text-gray-300 text-xs font-medium transition-colors cursor-pointer"
+                  >
+                    বাতিল
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* Normal Customer View */
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="font-bold text-gray-100 text-sm">{order.customerName || 'গ্রাহকের নাম নেই'}</h4>
+                  <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                    <MapPin className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+                    <span>{order.customerAddress || 'ঢাকা'}</span>
+                  </p>
+                </div>
+
+                <a
+                  href={`tel:${order.customerPhone}`}
+                  className="flex items-center gap-1.5 text-xs text-pink-400 hover:underline font-mono bg-pink-500/10 px-2.5 py-1.5 rounded-lg border border-pink-500/20 shrink-0 active:scale-95"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>{order.customerPhone || 'ফোন নম্বর নেই'}</span>
+                </a>
+              </div>
+            )}
 
             <div className="flex items-center justify-between pt-2 border-t border-[#202738] text-[11px] text-gray-400">
               <span className="flex items-center gap-1 font-mono">
